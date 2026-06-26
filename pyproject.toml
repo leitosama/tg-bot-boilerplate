@@ -20,7 +20,7 @@ dev = [
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-py-modules = ["bot", "storage", "local"]
+py-modules = ["bot", "storage", "local", "worker"]
 
 [tool.ruff]
 line-length = 100
@@ -35,7 +35,7 @@ strict = true
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["telebot.*", "workers.*"]
+module = ["telebot.*", "workers.*", "aiohttp.*", "dotenv", "dotenv.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

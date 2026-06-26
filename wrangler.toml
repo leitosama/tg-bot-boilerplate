@@ -1,0 +1,13 @@
+name = "tg-bot-boilerplate"
+main = "src/worker.py"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["python_workers"]
+
+# Secrets (set via `wrangler secret put`):
+#   BOT_TOKEN   — Telegram bot token from @BotFather
+#   WORKER_URL  — public URL of this Worker (used once for webhook registration)
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tg_bot_counters"
+database_id = "YOUR_DATABASE_ID"

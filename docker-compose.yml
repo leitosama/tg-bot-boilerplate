@@ -1,21 +1,15 @@
-# Default `docker compose up` pulls the prebuilt image from GHCR.
-# To build locally instead: `docker compose --profile build up bot-build`.
-x-bot-common: &bot-common
-  env_file: .env
-  restart: unless-stopped
-  volumes:
-    - bot-data:/app/data
+# Default: `docker compose up -d`       → pulls prebuilt image from GHCR
+# Build locally: `docker compose up -d --build` → builds from Dockerfile
 
 services:
   bot:
-    <<: *bot-common
     image: ghcr.io/leitosama/tg-bot-boilerplate:latest
-
-  bot-build:
-    <<: *bot-common
-    profiles: ["build"]
     build:
       context: .
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - bot-data:/app/data
 
 volumes:
   bot-data:
