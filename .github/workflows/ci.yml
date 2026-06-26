@@ -10,8 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv pip install --system -e ".[dev]"
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: mypy --strict src/
-      - run: pytest tests/
+      - run: uv pip install -e ".[dev]"
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy --strict src/
+      - run: uv run pytest tests/
