@@ -7,10 +7,17 @@ Telegram bot boilerplate with two deployment targets:
 
 ## Stack
 - Python 3.12+ (Cloudflare Workers Python via Pyodide, open beta)
-- pyTelegramBotAPI (telebot)
+- pyTelegramBotAPI — **async** API (`telebot.async_telebot.AsyncTeleBot`)
+- `aiohttp` (used by `AsyncTeleBot`; also the only HTTP client supported in Workers)
 - python-dotenv
 - Standard logging module
 - Type hints everywhere — mypy strict mode is mandatory
+
+> **Why async?** On Cloudflare Workers (Pyodide), D1 is async-only
+> (`await env.DB...`) and outbound HTTP works only via async clients
+> (`aiohttp`/`httpx`) — synchronous `requests` does not work. Synchronous
+> handlers cannot `await`, so the bot uses `AsyncTeleBot` and an async
+> `Storage` protocol. The same async handlers run unchanged in both modes.
 
 ## Bot Logic
 Simple counter table with two columns:
@@ -23,7 +30,7 @@ Simple counter table with two columns:
 - SQLite for persistence, DB file `bot.db` in named volume at `/app/data/`
 - Settings via `.env` + python-dotenv, including `BOT_TOKEN`
 - Logs → stdout → `docker compose logs`
-- Bot runs in **polling** mode: `bot.infinity_polling()`
+- Bot runs in **polling** mode: `await bot.infinity_polling()` (inside `asyncio.run`)
 - `docker-compose.yml`: default policy is `image: ghcr.io/...` (pull);
   build profile available via `--profile build` for local development
 
@@ -33,8 +40,8 @@ Simple counter table with two columns:
 - Bot runs in **webhook** mode:
   - Worker's `fetch` handler receives POST from Telegram
   - Deserialize: `telebot.types.Update.de_json(body)`
-  - Dispatch: `bot.process_new_updates([update])`
-  - Bot instantiated with `threaded=False` (no thread pool in Workers)
+  - Dispatch: `await bot.process_new_updates([update])`
+  - `AsyncTeleBot` has no thread pool, which fits the Workers runtime
 - Secrets via `wrangler secret put BOT_TOKEN`
 - Config in `wrangler.toml` with D1 binding
 - Webhook registration: one-time via `/setup` endpoint or `wrangler` CLI call
@@ -47,21 +54,22 @@ Entry point differs:
 
 ```python
 # local.py — polling entry point
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
-# ... register handlers ...
-bot.infinity_polling()
+from telebot.async_telebot import AsyncTeleBot
+
+bot = AsyncTeleBot(BOT_TOKEN)
+# ... register async handlers ...
+await bot.infinity_polling()        # inside asyncio.run(main())
 
 # worker.py — webhook entry point (Cloudflare Worker)
 from workers import WorkerEntrypoint, Response
-
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
-# ... same handlers registered ...
+from telebot import types
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         body = await request.text()
-        update = telebot.types.Update.de_json(body)
-        bot.process_new_updates([update])
+        update = types.Update.de_json(body)
+        bot = make_bot(self.env.BOT_TOKEN, D1Storage(self.env.DB))
+        await bot.process_new_updates([update])
         return Response("ok")
 ```
 
@@ -71,13 +79,13 @@ Abstract DB access behind a `Storage` interface with two implementations:
 
 ```python
 class Storage(Protocol):
-    def get_count(self, user_hash: str) -> int: ...
-    def increment(self, user_hash: str) -> int: ...
+    async def get_count(self, user_hash: str) -> int: ...
+    async def increment(self, user_hash: str) -> int: ...
 
-class SqliteStorage(Storage):   # local Docker
+class SqliteStorage(Storage):   # local Docker (stdlib sqlite3)
     ...
 
-class D1Storage(Storage):       # Cloudflare D1
+class D1Storage(Storage):       # Cloudflare D1 (await env.DB...)
     ...
 ```
 
@@ -138,6 +146,13 @@ docker buildx build --platform linux/amd64,linux/arm64 → ghcr.io/<owner>/<repo
 - Cloudflare free tier only — no paid features
 - D1 free limits: 5M reads/day, 100k writes/day, 5GB — sufficient
 - Python Workers are open beta — use `python_workers` compatibility flag
-- `threaded=False` on TeleBot is mandatory for Workers runtime
+- Only async HTTP clients work in Workers (`aiohttp`/`httpx`); `requests` does not
 - No staging environment — `main` is production
 - No release versioning — working code ships directly to `main`
+
+## Docs / References
+- Cloudflare Workers (full LLM doc): https://developers.cloudflare.com/workers/llms-full.txt
+- Python Workers overview: https://developers.cloudflare.com/workers/languages/python/
+- Supported Python packages (async HTTP only): https://developers.cloudflare.com/workers/languages/python/packages/
+- Query D1 from Python Workers: https://developers.cloudflare.com/d1/examples/query-d1-from-python-workers/
+- `pywrangler` (workers-py): https://github.com/cloudflare/workers-py
