@@ -141,3 +141,6 @@ docker buildx build --platform linux/amd64,linux/arm64 → ghcr.io/<owner>/<repo
 - `threaded=False` on TeleBot is mandatory for Workers runtime
 - No staging environment — `main` is production
 - No release versioning — working code ships directly to `main`
+
+## Docs for LLMs
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/llms-full.txt)
